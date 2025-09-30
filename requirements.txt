@@ -1,0 +1,10 @@
+fastapi==0.114.2
+uvicorn[standard]==0.30.6
+chromadb==0.5.5
+sentence-transformers==3.0.1
+google-generativeai==0.7.2
+python-dotenv==1.0.1
+pydantic==2.9.2
+requests==2.32.3
+beautifulsoup4==4.12.3
+websockets>=13.0,<15.0

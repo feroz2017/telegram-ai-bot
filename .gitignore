@@ -1,0 +1,12 @@
+/venv
+/data
+/chroma
+/logs
+/__pycache__
+/static
+/static/index.html
+/static/script.js
+/static/style.css
+/static/favicon.ico
+/static/robots.txt
+.env

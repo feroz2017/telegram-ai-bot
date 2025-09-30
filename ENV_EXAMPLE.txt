@@ -1,0 +1,34 @@
+# Copy this file to .env and set your values
+
+# Required
+GEMINI_API_KEY=your_gemini_key_here
+
+# Optional overrides (these have sensible defaults)
+# Model
+GEMINI_MODEL=gemini-pro
+
+# Storage paths
+CHROMA_PATH=./chroma
+DATA_PATH=./data
+DB_PATH=./conversations.db 
+COLLECTION_NAME=docs
+
+# Server
+HOST=0.0.0.0
+PORT=8000
+
+# Crawler
+CRAWL_BASE_URL=https://witas.fi/
+CRAWL_OUTPUT_DIR=./data/witas
+CRAWL_MAX_PAGES=60
+CRAWL_SAME_DOMAIN_ONLY=true
+CRAWL_DELAY_SECONDS=0.5
+
+
+# Telegram
+# Use TELEGRAM_BOT_TOKEN (preferred). TELEGRAM_TOKEN is accepted as fallback.
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+# Optional: set a secret for the webhook path. Your webhook URL will be:
+#   https://your-domain/telegram/webhook/<this_value>
+# If empty, any secret path will be accepted (not recommended for production).
+TELEGRAM_WEBHOOK_SECRET=some-long-random-string
