@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
 import requests
+import re
 
 from .embeddings import SentenceTransformerEmbeddingFunction
 
@@ -138,6 +139,23 @@ def build_app() -> FastAPI:
         if not GEMINI_API_KEY:
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured on server")
 
+        # Check for social media questions and provide direct response
+        question_lower = question.lower()
+        if any(keyword in question_lower for keyword in ['social media', 'linkedin', 'facebook', 'instagram', 'follow', 'social']):
+            social_media_response = (
+                "Hei! 👋 Great question! You can follow us on:\n\n"
+                "• [LinkedIn](https://www.linkedin.com/company/witasoy/posts/?feedView=all)\n"
+                "• [Facebook](https://www.facebook.com/witasoy/)\n"
+                "• [Instagram](https://www.instagram.com/witasoy/)\n\n"
+                "We share updates about events, news, and opportunities for entrepreneurs in Viitasaari! "
+                "Would you like to subscribe to our newsletter as well? 📧"
+            )
+            return AskResponse(
+                answer=social_media_response,
+                sources=[{"source": "general-info.txt", "distance": 0.0, "urls": []}],
+                session_id=session_id
+            )
+
         # Get conversation history
         history = get_conversation_history(session_id, limit=5)
         
@@ -154,11 +172,17 @@ def build_app() -> FastAPI:
 
         context_parts: List[str] = []
         sources: List[Dict[str, Any]] = []
+        all_urls: List[str] = []
         for doc, meta, dist in zip(documents, metadatas, distances):
             context_parts.append(doc)
+            # Parse URLs from semicolon-separated string
+            urls_str = meta.get("urls", "")
+            source_urls = [url.strip() for url in urls_str.split(";") if url.strip()] if urls_str else []
+            all_urls.extend(source_urls)
             sources.append({
                 "source": meta.get("source", "unknown"),
                 "distance": dist,
+                "urls": source_urls,
             })
 
         context = "\n\n".join(context_parts[:4])
@@ -170,20 +194,70 @@ def build_app() -> FastAPI:
             for h in history[-3:]:  # Last 3 exchanges
                 history_str += f"User: {h['question']}\nAssistant: {h['answer']}\n"
 
+        # Get unique URLs for reference
+        unique_urls = list(set(all_urls))[:3]  # Limit to 3 most relevant URLs
+        
+        # Load general info for contact details
+        general_info = ""
+        try:
+            with open("general-info.txt", "r", encoding="utf-8") as f:
+                general_info = f.read()
+        except FileNotFoundError:
+            pass
+        
+        # Add social media links to context if not already present
+        social_media_context = """
+        Witas Oy Social Media Links:
+        - LinkedIn: https://www.linkedin.com/company/witasoy/posts/?feedView=all
+        - Facebook: https://www.facebook.com/witasoy/
+        - Instagram: https://www.instagram.com/witasoy/
+        - Newsletter: https://witas.fi/witas-oy/tilaa-uutiskirje
+        """
+
         prompt = (
-            "You are a helpful community assistant for Witas Oy, a development company serving entrepreneurs in Viitasaari, Finland.\n"
-            "Answer using the provided context from the Witas website. If the answer is not in the context, say you don't know.\n"
-            "Keep replies concise and cite filenames when helpful.\n"
-            "Consider the conversation history when answering.\n\n"
-            f"{history_str}"
-            f"Context from knowledge base:\n{context}\n\n"
-            f"Current question: {question}\n\n"
-            "Answer:"
+            "You are a friendly, professional customer support representative for Witas Oy, a development company serving entrepreneurs in Viitasaari, Finland.\n"
+            "Your role is to provide personalized, helpful assistance with a warm, human touch.\n\n"
+            "IMPORTANT GUIDELINES:\n"
+            "- Keep responses concise (2-3 paragraphs max)\n"
+            "- Use a conversational, friendly tone like a real person\n"
+            "- Always end with a helpful follow-up question\n"
+            "- For contact info, provide specific names, phone numbers, and booking links\n"
+            "- Use emojis sparingly but effectively (📞, 📧, 🤝, 💼)\n"
+            "- Make responses interactive and engaging\n"
+            "- ALWAYS use the EXACT links from the contact information below\n"
+            "- Format links as [text](url) for clickable links in Telegram\n\n"
+            "ANTI-REDUNDANCY:\n"
+            "- If there is any conversation history, DO NOT start with greetings (e.g., 'Hi', 'Hello', 'Hei'). Go straight to the answer.\n\n"
+            "CONTACT INFORMATION REFERENCE (USE THESE EXACT LINKS):\n"
+            f"{general_info}\n\n"
+            f"CONVERSATION HISTORY:\n{history_str}\n\n"
+            f"CONTEXT FROM WEBSITE:\n{context}\n\n"
+            f"SOCIAL MEDIA AND CONTACT LINKS:\n{social_media_context}\n\n"
+            f"AVAILABLE LINKS: {', '.join(unique_urls) if unique_urls else 'None'}\n\n"
+            f"USER QUESTION: {question}\n\n"
+            "MANDATORY: If the user asks about social media, you MUST respond with this EXACT format:\n"
+            "'Hei! 👋 Great question! You can follow us on:\n"
+            "• [LinkedIn](https://www.linkedin.com/company/witasoy/posts/?feedView=all)\n"
+            "• [Facebook](https://www.facebook.com/witasoy/)\n"
+            "• [Instagram](https://www.instagram.com/witasoy/)\n\n"
+            "We share updates about events, news, and opportunities for entrepreneurs in Viitasaari! Would you like to subscribe to our newsletter as well?'\n\n"
+            "DO NOT say you don't have the links. ALWAYS use the links above.\n\n"
+            "RESPONSE FORMAT:\n"
+            "1. Give a direct, helpful answer (1-2 paragraphs)\n"
+            "2. Include specific contact details if relevant\n"
+            "3. Use EXACT links from the contact information above\n"
+            "4. Format all links as [text](url) for clickability\n"
+            "5. End with a personalized follow-up question\n\n"
+            "Remember: Be human, be helpful, be concise, and ALWAYS use the exact links provided!"
         )
 
         model = genai.GenerativeModel(GEMINI_MODEL)
         response = model.generate_content(prompt)
         answer_text = getattr(response, "text", None) or "No answer generated."
+
+        # If this is a continued conversation, strip leading greetings to avoid repetition
+        if history:
+            answer_text = re.sub(r"^\s*(?:hi|hello|hei|hey|moikka|terve|hola)[!,.\s\u200b\ud83d\ude4b\U0001F44B]*", "", answer_text, flags=re.IGNORECASE)
 
         # Save conversation to database
         save_conversation(session_id, question, answer_text.strip(), sources)
@@ -244,7 +318,8 @@ def build_app() -> FastAPI:
                 json={
                     "chat_id": chat_id,
                     "text": reply_text,
-                    "disable_web_page_preview": True,
+                    "parse_mode": "Markdown",
+                    "disable_web_page_preview": False,  # Allow link previews for better UX
                 },
                 timeout=15,
             )

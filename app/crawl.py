@@ -42,10 +42,29 @@ def fetch(url: str) -> str | None:
 
 
 def save_html(base_url: str, url: str, html: str) -> None:
-    rel = url.replace(base_url, "").strip("/") or "index"
+    # Remove the base URL to get relative path
+    if url.startswith(base_url):
+        rel = url[len(base_url):].strip("/")
+    else:
+        rel = url.strip("/")
+    
+    # Handle root URL case
+    if not rel or rel == "":
+        rel = "index"
+    
+    # Clean up the path and ensure it's safe
+    rel = rel.replace("//", "/").strip("/")
+    if not rel:
+        rel = "index"
+    
     out_path = OUTPUT_DIR / f"{rel}.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(html, encoding="utf-8", errors="ignore")
+    
+    try:
+        out_path.write_text(html, encoding="utf-8", errors="ignore")
+        print(f"Saved to: {out_path}")
+    except Exception as e:
+        print(f"Failed to save {url} to {out_path}: {e}")
 
 
 def crawl() -> None:

@@ -33,19 +33,43 @@ def _extract_text_from_html(html: str) -> str:
     return "\n".join([line for line in lines if line])
 
 
-def _load_documents(data_dir: Path) -> List[Tuple[str, str]]:
-    docs: List[Tuple[str, str]] = []
+def _extract_urls_from_html(html: str, base_url: str = "") -> List[str]:
+    """Extract URLs from HTML content."""
+    soup = BeautifulSoup(html, "html.parser")
+    urls = []
+    
+    # Extract links
+    for link in soup.find_all("a", href=True):
+        href = link["href"]
+        if href.startswith("http"):
+            urls.append(href)
+        elif href.startswith("/"):
+            # Relative URL - construct full URL if base_url provided
+            if base_url:
+                full_url = base_url.rstrip("/") + href
+                urls.append(full_url)
+    
+    return list(set(urls))  # Remove duplicates
+
+
+def _load_documents(data_dir: Path) -> List[Tuple[str, str, List[str]]]:
+    docs: List[Tuple[str, str, List[str]]] = []
     for path in sorted(data_dir.rglob("*")):
         if not path.is_file():
             continue
         if path.suffix.lower() in {".txt", ".md"}:
             content = _read_text_file(path)
+            urls = []
         elif path.suffix.lower() in {".html", ".htm"}:
-            content = _extract_text_from_html(_read_text_file(path))
+            html_content = _read_text_file(path)
+            content = _extract_text_from_html(html_content)
+            # Try to construct base URL from file path
+            base_url = "https://witas.fi"  # Default base URL
+            urls = _extract_urls_from_html(html_content, base_url)
         else:
             continue
         if content.strip():
-            docs.append((str(path.relative_to(data_dir)), content))
+            docs.append((str(path.relative_to(data_dir)), content, urls))
     return docs
 
 
@@ -83,12 +107,15 @@ def ingest() -> None:
     metadatas: List[dict] = []
     embeddings: List[List[float]] = []
 
-    for doc_id, content in docs:
+    for doc_id, content, urls in docs:
         chunks = _chunk_text(content)
         for chunk in chunks:
             ids.append(str(uuid.uuid4()))
             texts.append(chunk)
-            metadatas.append({"source": doc_id})
+            metadatas.append({
+                "source": doc_id,
+                "urls": "; ".join(urls[:5]) if urls else ""  # Store up to 5 URLs as semicolon-separated string
+            })
 
     embeddings = embedder(texts)
 
