@@ -1,3 +1,10 @@
+"""
+FastAPI server module for the Telegram RAG chatbot.
+
+This module implements the main application server with RAG (Retrieval-Augmented
+Generation) logic, conversation management, and Telegram webhook integration.
+"""
+
 import os
 import sqlite3
 import time
@@ -333,8 +340,9 @@ def build_app() -> FastAPI:
 
 
 def run() -> None:
+    """Run the FastAPI server."""
     app = build_app()
-    uvicorn.run(app, host=HOST, port=5000)
+    uvicorn.run(app, host=HOST, port=PORT)
 
 
 if __name__ == "__main__":

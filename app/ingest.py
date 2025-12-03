@@ -1,3 +1,10 @@
+"""
+Document ingestion module for processing and indexing content.
+
+This module handles loading documents, chunking text, generating embeddings,
+and storing them in ChromaDB for semantic search.
+"""
+
 import os
 import uuid
 from pathlib import Path

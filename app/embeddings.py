@@ -1,3 +1,10 @@
+"""
+Embedding function wrapper for ChromaDB.
+
+Provides thread-safe access to sentence transformer models for generating
+text embeddings used in semantic search.
+"""
+
 import threading
 from typing import List
 

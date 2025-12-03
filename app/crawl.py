@@ -1,3 +1,10 @@
+"""
+Web crawler module for extracting content from websites.
+
+This module provides functionality to crawl websites, extract HTML content,
+and save it locally for further processing.
+"""
+
 import os
 import time
 import urllib.parse
