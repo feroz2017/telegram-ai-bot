@@ -1,0 +1,19 @@
+name: 'Test Workflow'
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  TestJob:
+    runs-on: ubuntu-latest
+
+    steps:
+      # This step pulls your repository code onto the runner
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run a test script
+        run: echo "Hello test world"
